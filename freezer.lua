@@ -6,14 +6,18 @@
 -- v0
 --
 --    ▼ instructions below ▼
+engine.name = "Freezer"
 local started = false
 local freezerValue = 0
 function init()
     -- setup osc
     osc_fun = {
         freezeFader = function(args)
-            freezerValue = tonumber(args[1])
-            started = true
+            local f = tonumber(args[1])
+            if f ~= nil then
+              freezerValue = f
+              started = true
+            end
         end
     }
     osc.event = function(path, args, from)
@@ -44,13 +48,24 @@ function init()
             max = 1,
             div = 1,
             default = 0
-        }, {
+        }, 
+
+ {
+            id = "freezeFadePos",
+            name = "fade",
+            engine = true,
+            min = 0,
+            max = 1,
+            div = 0.025,
+            default = 0
+        }, 
+      {
             id = "bufferDuration",
             name = "freeze time",
             engine = false,
             min = 0.1,
             max = 30.0,
-            div = 0.1,
+            div = 0.01,
             default = 2.0
         }, {
             id = "freezeTime",
@@ -59,14 +74,14 @@ function init()
             min = 0.1,
             max = 30.0,
             div = 0.1,
-            default = 10.0
+            default = 2.0
         }, {
             id = "impulseFreq",
             name = "tremolo",
             engine = true,
             min = 0.5,
             max = 30.0,
-            div = 0.5,
+            div = 0.02,
             default = 10.0,
             unit = "hz"
         }
@@ -101,23 +116,27 @@ function init()
         end)
     end
 
+    engine.freezer(params:get("bufferDuration"))
+    
 end
 
 function key(n, z)
+    if z==0 then 
+      do return end 
+      end
     if n == 1 then
     elseif n == 2 then
     elseif n == 3 then
-        engine.freezer(params:get("bufferDuration"))
+      params:set("freeze",1-params:get("freeze"))
     end
 end
 
 function enc(n, d)
     if n == 1 then
-        params:delta("bufferDuration", d)
     elseif n == 2 then
-        params:delta("freezeTime", d)
-    elseif n == 3 then
         params:delta("impulseFreq", d)
+    elseif n == 3 then
+      params:delta("freezeFadePos",d)
     end
 end
 
@@ -134,7 +153,9 @@ function redraw()
     screen.move(10, 30)
     screen.text("impulseFreq: " .. params:string("impulseFreq"))
     screen.move(10, 40)
-    screen.text("freezeValue: " .. freezerValue)
+    screen.text("freezeValue: " .. string.format("%1.2f",freezerValue))
+    screen.move(10, 50)
+    screen.text("freeze: " .. string.format("%d",params:get("freeze")))
     screen.update()
 end
 

@@ -7,6 +7,7 @@ Engine_Freezer : CroneEngine {
 	var server;
 	var params;
 	var syns;
+	var oscs;
 	// Freezer ^
 
 
@@ -19,7 +20,7 @@ Engine_Freezer : CroneEngine {
 		var server = context.server;
 
         SynthDef("freezer",{
-            arg bufL, bufR, freeze=0, freezeTime=10, rate=1, impulseFreq = 10, gate = 1;
+            arg bufL, bufR, freeze=0, freezeTime=2.0, freezeFadePos=0, rate=1, impulseFreq = 10, gate = 1;
             var sndIn, sndGrain, snd, impulse;
             var freezeFader;
             var freezeRecord = Latch.kr(freeze,TDelay.kr(Changed.kr(freeze),freezeTime));
@@ -34,7 +35,7 @@ Engine_Freezer : CroneEngine {
             RecordBuf.ar(
                 inputArray: sndIn[1],
                 bufnum: bufR,
-                recLevel: VarLag.kr(1-freezeRecord,warp:\sine).poll,
+                recLevel: VarLag.kr(1-freezeRecord,warp:\sine),
                 preLevel: VarLag.kr(freezeRecord,warp:\sine),
             );
             sndGrain = GrainBuf.ar(
@@ -56,7 +57,7 @@ Engine_Freezer : CroneEngine {
                 pan: 1,
                 maxGrains: 256,
             );
-            freezeFader = VarLag.kr(freeze,freezeTime,warp:\sine);
+            freezeFader = VarLag.kr(freezeFadePos,0.2,warp:\sine);
 			SendReply.kr(Impulse.kr(10*gate),"/state",[freezeFader]);
             snd = SelectX.ar(freezeFader,[sndIn,sndGrain+(LFNoise2.kr(1/3).range(0.2,0.5)*[
                 PlayBuf.ar(1,bufL,loop:1),
@@ -70,11 +71,10 @@ Engine_Freezer : CroneEngine {
 		// initialize variables
 		params = Dictionary.new();
 		syns = Dictionary.new();
-        oscs = Dictionary.new();
+    oscs = Dictionary.new();
 
-        oscs.put("state",OSCFunc({ |msg|
-			var freezeFader=msg[0];
-			NetAddr("127.0.0.1", 10111).sendMsg("freezeFader",freezeFader);
+    oscs.put("state",OSCFunc({ |msg|
+      NetAddr("127.0.0.1", 10111).sendMsg("freezeFader",msg[3]);
 		}, '/state'));
 
 		this.addCommand("freezer","f",{ arg msg;
@@ -87,8 +87,8 @@ Engine_Freezer : CroneEngine {
             if (syns.at("freezer").notNil,{
                 syns.at("freezer").set(\gate,0);
             });
-            Buffer.alloc(server,2*server.sampleRate,1, action:{ arg bufL;
-                Buffer.alloc(server,2*server.sampleRate,1, action:{ arg bufR;
+            Buffer.alloc(server,2*server.sampleRate,1, completionMessage:{ arg bufL;
+                Buffer.alloc(server,2*server.sampleRate,1, completionMessage:{ arg bufR;
                     args=args++[\bufL,bufL,\bufR,bufR];
                     syns.put("freezer",Synth.head(server,"freezer",args).onFree({
                         bufL.free;
@@ -114,6 +114,9 @@ Engine_Freezer : CroneEngine {
 
 	free {
 		syns.keysValuesDo({ arg k, val;
+			val.free;
+		});
+		oscs.keysValuesDo({ arg k, val;
 			val.free;
 		});
 	}
